@@ -1,0 +1,27 @@
+{
+  "name": "urlshortner",
+  "version": "1.0.0",
+  "description": "\"Backend program for url Shortning\"",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start":"npx nodemon src/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shivansh-p7/urlShortner.git"
+  },
+  "author": "\"Shivansh\"",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/shivansh-p7/urlShortner/issues"
+  },
+  "homepage": "https://github.com/shivansh-p7/urlShortner#readme",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^6.8.3"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.20"
+  }
+}
