@@ -8,8 +8,7 @@ app.use(express.json());
 
 mongoose.set("strictQuery", true);
 
-mongoose
-  .connect(
+mongoose.connect(
     "mongodb+srv://mohdarshad86:Arshad86@cluster0.r4p7rwf.mongodb.net/group18Database",
     { useNewUrlParser: true }
   )
