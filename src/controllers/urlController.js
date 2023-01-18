@@ -4,7 +4,7 @@ const shortId = require("shortid");
 const validator = require('validator')
 const {promisify} = require('util')
 const redis = require('redis');
-const { setuid } = require("process");
+const axios=require('axios')
 
 const validUrl = /^[a-zA-Z_-]{1}[a-zA-Z0-9_-]*$/
 
@@ -21,42 +21,40 @@ redisClient.on("connect", async ()=>{
   console.log("Redis is Connected");
 })
 
-const SET_ASYNC=promisify(redisClient.SET).bind(redisClient)
-const GET_ASYNC=promisify(redisClient.GET).bind(redisClient)
+const SET_ASYNC = promisify(redisClient.SET).bind(redisClient)
+const GET_ASYNC = promisify(redisClient.GET).bind(redisClient)
+const SET_EX = promisify(redisClient.EXPIREAT).bind(redisClient)
 
 exports.createUrl = async (req, res) => {
   try {
     let longUrl = req.body.longUrl;
     longUrl = longUrl.trim()
 
-    if (!longUrl) {
+    if (Object.keys(req.body).length == 0) {
         return res.status(400).send({ status: false, msg: "Please enter mendatory url" });
       }
-      if (!isValidUrl.isUri(longUrl)) {
+
+    if (!isValidUrl.isUri(longUrl)) {
         return res.status(400).send({ status: false, msg: "Url is not valid" });
-      }
-
-    let checkUrl = await GET_ASYNC(`${longUrl}`)
-
-    console.log(checkUrl);
-
-    if (checkUrl) {
-      return res.status(200).send({ status: true, msg: "ShortUrl Already generated from redis", data:checkUrl});
     }
 
-    else{
-    let getUrl = await urlModel.findOne({ longUrl: longUrl }).select({_id:0, __v:0});
+    let isUrlExistInCache = await GET_ASYNC(`${longUrl}`)
+
+    if (isUrlExistInCache) {
+      isUrlExistInCache=JSON.parse(isUrlExistInCache)
+
+      return res.status(200).send({status:true, msg: "ShortUrl Already Exist in cache", data:isUrlExistInCache})
+    }
+
+    let isUrlExistInDB = await urlModel.findOne({ longUrl: longUrl }).select({_id:0, __v:0});
     
-    if (getUrl) {
-      let setUrl=await SET_ASYNC(`${getUrl.longUrl}`, JSON.stringify(getUrl.longUrl))
-
-      console.log(setUrl);
-
-      return res.status(200).send({ status: true, msg: "ShortUrl Already generated from db", data : getUrl });
+    if (isUrlExistInDB) {
+      await SET_ASYNC(`${longUrl}`, JSON.stringify(isUrlExistInDB))
+      return res.status(200).send({ status: true, msg: "ShortUrl Already Exist in db", data : isUrlExistInDB });
     }
-
-    let urlCode = shortId.generate();
-    urlCode = urlCode.toLowerCase();
+    
+    let urlCode = shortId.generate().toLowerCase();
+    
     let shortUrl = "http://localhost:3000/" + urlCode;
 
     let newObj = {};
@@ -65,10 +63,14 @@ exports.createUrl = async (req, res) => {
     newObj.longUrl = longUrl;
     newObj.shortUrl = shortUrl;
 
-    const urlDetails = await urlModel.create(newObj);
+    await urlModel.create(newObj);
+
+    await SET_ASYNC(`${longUrl}`, JSON.stringify(newObj))
+    // await SET_EX(`${longUrl}`, 5); //set expire 60 seconds
+
     
     return res.status(201).send({ status: true, data: newObj });
-    }
+    
   } catch (err) {
     return res.status(500).send({ status: false, Error: err.message });
   }
@@ -84,14 +86,22 @@ exports.getUrl = async (req, res) => {
 
     if(!validUrl.test(urlCode) || urlCode.length !==9 || !validator.isAlphanumeric(urlCode, "en-US", {ignore:"-,_"} )) return res.status(400).send({ status: false, message: "invalid urlCode" });
 
-    urlCode = urlCode.toLowerCase();
+    let isUrlExistInCache = await GET_ASYNC(`${urlCode}`)
+
+    if (isUrlExistInCache) {
+      isUrlExistInCache = JSON.parse(isUrlExistInCache)
+    
+      return res.status(302).redirect(isUrlExistInCache);
+    }
 
     let urlDetails = await urlModel.findOne({ urlCode: urlCode });
-
+    
     if (!urlDetails)
       return res.status(404).send({ status: false, message: "url Not Found" });
 
     let longUrl = urlDetails.longUrl;
+
+    await SET_ASYNC(`${urlCode}`, JSON.stringify(longUrl))
 
     return res.status(302).redirect(longUrl);
   } catch (error) {
