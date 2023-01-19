@@ -9,7 +9,7 @@ const axios=require('axios')
 const validUrl = /^[a-zA-Z_-]{1}[a-zA-Z0-9_-]*$/
 
 
-const redisClient=redis.createClient(
+const redisClient = redis.createClient(
   18590, "redis-18590.c305.ap-south-1-1.ec2.cloud.redislabs.com",
   { no_ready_check: true }
 );
@@ -21,13 +21,16 @@ redisClient.on("connect", async ()=>{
   console.log("Redis is Connected");
 })
 
-const SET_ASYNC = promisify(redisClient.SET).bind(redisClient)
+const SET_ASYNC = promisify(redisClient.SETEX).bind(redisClient)
 const GET_ASYNC = promisify(redisClient.GET).bind(redisClient)
-const SET_EX = promisify(redisClient.EXPIREAT).bind(redisClient)
 
 exports.createUrl = async (req, res) => {
   try {
     let longUrl = req.body.longUrl;
+
+if(longUrl.indexOf("https")==-1) longUrl=longUrl.replace("http","https")
+
+   
     longUrl = longUrl.trim()
 
     if (Object.keys(req.body).length == 0) {
@@ -37,6 +40,16 @@ exports.createUrl = async (req, res) => {
     if (!isValidUrl.isUri(longUrl)) {
         return res.status(400).send({ status: false, msg: "Url is not valid" });
     }
+
+        let urlfound = false;
+        await axios.get(longUrl)
+        .then((result) => {
+        if ( result.status == 201 || result.status == 200 )
+            urlfound = true;
+        })
+        .catch((err) => {console.log(err.message)});
+      
+        if (urlfound == false) return res.status(400).send({status: false, message: "Link is not valid"})
 
     let isUrlExistInCache = await GET_ASYNC(`${longUrl}`)
 
@@ -49,7 +62,7 @@ exports.createUrl = async (req, res) => {
     let isUrlExistInDB = await urlModel.findOne({ longUrl: longUrl }).select({_id:0, __v:0});
     
     if (isUrlExistInDB) {
-      await SET_ASYNC(`${longUrl}`, JSON.stringify(isUrlExistInDB))
+      await SET_ASYNC(`${longUrl}`, 86400, JSON.stringify(isUrlExistInDB))
       return res.status(200).send({ status: true, msg: "ShortUrl Already Exist in db", data : isUrlExistInDB });
     }
     
@@ -65,9 +78,8 @@ exports.createUrl = async (req, res) => {
 
     await urlModel.create(newObj);
 
-    await SET_ASYNC(`${longUrl}`, JSON.stringify(newObj))
-    // await SET_EX(`${longUrl}`, 5); //set expire 60 seconds
-
+    await SET_ASYNC(`${longUrl}`, 86400, JSON.stringify(newObj))
+   
     
     return res.status(201).send({ status: true, data: newObj });
     
@@ -101,7 +113,7 @@ exports.getUrl = async (req, res) => {
 
     let longUrl = urlDetails.longUrl;
 
-    await SET_ASYNC(`${urlCode}`, JSON.stringify(longUrl))
+    await SET_ASYNC(`${urlCode}`, 86400, JSON.stringify(longUrl))
 
     return res.status(302).redirect(longUrl);
   } catch (error) {
