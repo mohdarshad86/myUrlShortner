@@ -28,17 +28,16 @@ exports.createUrl = async (req, res) => {
   try {
     let longUrl = req.body.longUrl;
 
-if(longUrl.indexOf("https")==-1) longUrl=longUrl.replace("http","https")
+    if(longUrl.indexOf("https")==-1) longUrl=longUrl.replace("http","https")
 
-   
     longUrl = longUrl.trim()
 
-    if (Object.keys(req.body).length == 0) {
-        return res.status(400).send({ status: false, msg: "Please enter mendatory url" });
+    if (Object.keys(req.body).length == 0 || longUrl == "") {
+        return res.status(400).send({ status: false, message: "Please enter mendatory url" });
       }
 
     if (!isValidUrl.isUri(longUrl)) {
-        return res.status(400).send({ status: false, msg: "Url is not valid" });
+        return res.status(400).send({ status: false, message: "Url is not valid" });
     }
 
         let urlfound = false;
@@ -56,14 +55,14 @@ if(longUrl.indexOf("https")==-1) longUrl=longUrl.replace("http","https")
     if (isUrlExistInCache) {
       isUrlExistInCache=JSON.parse(isUrlExistInCache)
 
-      return res.status(200).send({status:true, msg: "ShortUrl Already Exist in cache", data:isUrlExistInCache})
+      return res.status(200).send({status:true, data:isUrlExistInCache})
     }
 
     let isUrlExistInDB = await urlModel.findOne({ longUrl: longUrl }).select({_id:0, __v:0});
     
     if (isUrlExistInDB) {
-      await SET_ASYNC(`${longUrl}`, 86400, JSON.stringify(isUrlExistInDB))
-      return res.status(200).send({ status: true, msg: "ShortUrl Already Exist in db", data : isUrlExistInDB });
+      await SET_ASYNC(`${longUrl}`, 86400, JSON.stringify(isUrlExistInDB));
+      return res.status(200).send({ status: true, data : isUrlExistInDB });
     }
     
     let urlCode = shortId.generate().toLowerCase();
@@ -79,14 +78,12 @@ if(longUrl.indexOf("https")==-1) longUrl=longUrl.replace("http","https")
     await urlModel.create(newObj);
 
     await SET_ASYNC(`${longUrl}`, 86400, JSON.stringify(newObj))
-   
     
     return res.status(201).send({ status: true, data: newObj });
     
   } catch (err) {
     return res.status(500).send({ status: false, Error: err.message });
   }
-
 };
 
 exports.getUrl = async (req, res) => {
