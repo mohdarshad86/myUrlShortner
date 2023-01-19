@@ -27,6 +27,10 @@ const GET_ASYNC = promisify(redisClient.GET).bind(redisClient)
 exports.createUrl = async (req, res) => {
   try {
     let longUrl = req.body.longUrl;
+
+if(longUrl.indexOf("https")==-1) longUrl=longUrl.replace("http","https")
+
+   
     longUrl = longUrl.trim()
 
     if (Object.keys(req.body).length == 0) {
@@ -43,7 +47,7 @@ exports.createUrl = async (req, res) => {
         if ( result.status == 201 || result.status == 200 )
             urlfound = true;
         })
-        .catch((err) => {console.log(err)});
+        .catch((err) => {console.log(err.message)});
       
         if (urlfound == false) return res.status(400).send({status: false, message: "Link is not valid"})
 
@@ -75,7 +79,7 @@ exports.createUrl = async (req, res) => {
     await urlModel.create(newObj);
 
     await SET_ASYNC(`${longUrl}`, 86400, JSON.stringify(newObj))
-    // await SET_EX(`${longUrl}`, 5); //set expire 5 seconds
+   
     
     return res.status(201).send({ status: true, data: newObj });
     
